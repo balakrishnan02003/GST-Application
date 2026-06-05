@@ -1,0 +1,30 @@
+# Dependencies
+node_modules/
+frontend/dist/
+
+# .NET
+backend/**/bin/
+backend/**/obj/
+*.user
+*.suo
+
+# Environment
+.env
+.env.*
+!.env.example
+
+# IDE
+.vs/
+.idea/
+*.swp
+
+# OS
+Thumbs.db
+.DS_Store
+
+# Database
+gstplatform.db
+gstplatform.db-*
+
+# Docker
+gstplatform_pgdata/

@@ -1,0 +1,7 @@
+<Solution>
+  <Folder Name="/backend/">
+    <Project Path="backend/GstPlatform.Api/GstPlatform.Api.csproj" />
+    <Project Path="backend/GstPlatform.Core/GstPlatform.Core.csproj" />
+    <Project Path="backend/GstPlatform.Infrastructure/GstPlatform.Infrastructure.csproj" />
+  </Folder>
+</Solution>

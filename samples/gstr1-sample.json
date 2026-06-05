@@ -1,0 +1,19 @@
+{
+  "gstin": "29ABCDE1234F1Z5",
+  "sales": [
+    {
+      "invoiceNo": "INV-001",
+      "taxableValue": 150000,
+      "cgst": 13500,
+      "sgst": 13500,
+      "igst": 0
+    },
+    {
+      "invoiceNo": "INV-002",
+      "taxableValue": 80000,
+      "cgst": 7200,
+      "sgst": 7200,
+      "igst": 0
+    }
+  ]
+}

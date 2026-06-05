@@ -1,0 +1,22 @@
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "DM Sans", system-ui, sans-serif;
+  --color-brand-50: #eef9ff;
+  --color-brand-100: #d9f1ff;
+  --color-brand-500: #0b7fd4;
+  --color-brand-600: #0966ab;
+  --color-brand-700: #0a5289;
+  --color-brand-900: #0c2d4a;
+  --color-surface: #f6f8fb;
+  --color-card: #ffffff;
+  --color-muted: #64748b;
+  --color-success: #059669;
+  --color-warning: #d97706;
+  --color-danger: #dc2626;
+}
+
+body {
+  @apply bg-surface text-slate-900 antialiased;
+  font-family: var(--font-sans);
+}

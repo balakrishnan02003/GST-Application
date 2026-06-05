@@ -1,0 +1,6 @@
+@GstPlatform.Api_HostAddress = http://localhost:5253
+
+GET {{GstPlatform.Api_HostAddress}}/weatherforecast/
+Accept: application/json
+
+###
