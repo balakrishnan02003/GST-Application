@@ -58,6 +58,9 @@ export interface Invoice {
   invoiceDate: string;
   amount: number;
   gstAmount: number;
+  cgst?: number;
+  sgst?: number;
+  igst?: number;
   status: string;
   customerName?: string;
 }

@@ -1,0 +1,108 @@
+{
+  "gstin": "29ABCDE1234F1Z5",
+  "businessName": "TechFix Solutions Pvt Ltd",
+  "ledgerPeriod": "April - June 2024",
+  "openingBalance": 50000,
+  "closingBalance": 21680,
+  "transactions": [
+    {
+      "date": "2024-04-01",
+      "description": "Opening Balance",
+      "transactionType": "Opening",
+      "gstPayable": 0,
+      "itcAvailable": 0,
+      "netLiability": 0,
+      "balance": 50000
+    },
+    {
+      "date": "2024-04-05",
+      "description": "GSTR-1 Filed - April",
+      "transactionType": "Filing",
+      "gstPayable": 125100,
+      "itcAvailable": 0,
+      "netLiability": 125100,
+      "balance": -75100
+    },
+    {
+      "date": "2024-04-10",
+      "description": "GSTR-2B Uploaded - April",
+      "transactionType": "ITC",
+      "gstPayable": 0,
+      "itcAvailable": 90000,
+      "netLiability": -90000,
+      "balance": 14900
+    },
+    {
+      "date": "2024-04-15",
+      "description": "GST Payment - April",
+      "transactionType": "Payment",
+      "gstPayable": 0,
+      "itcAvailable": 0,
+      "netLiability": -35100,
+      "balance": 50000
+    },
+    {
+      "date": "2024-04-20",
+      "description": "Invoice INV-2024-013",
+      "transactionType": "Sale",
+      "gstPayable": 17700,
+      "itcAvailable": 0,
+      "netLiability": 17700,
+      "balance": 32300
+    },
+    {
+      "date": "2024-04-25",
+      "description": "Invoice INV-2024-014",
+      "transactionType": "Sale",
+      "gstPayable": 10620,
+      "itcAvailable": 0,
+      "netLiability": 10620,
+      "balance": 21680
+    },
+    {
+      "date": "2024-05-01",
+      "description": "Opening Balance - May",
+      "transactionType": "Opening",
+      "gstPayable": 0,
+      "itcAvailable": 0,
+      "netLiability": 0,
+      "balance": 21680
+    },
+    {
+      "date": "2024-05-05",
+      "description": "GSTR-1 Filed - May",
+      "transactionType": "Filing",
+      "gstPayable": 135000,
+      "itcAvailable": 0,
+      "netLiability": 135000,
+      "balance": -113320
+    },
+    {
+      "date": "2024-05-10",
+      "description": "GSTR-2B Uploaded - May",
+      "transactionType": "ITC",
+      "gstPayable": 0,
+      "itcAvailable": 95000,
+      "netLiability": -95000,
+      "balance": -18320
+    },
+    {
+      "date": "2024-05-15",
+      "description": "GST Payment - May",
+      "transactionType": "Payment",
+      "gstPayable": 0,
+      "itcAvailable": 0,
+      "netLiability": -40000,
+      "balance": 21680
+    },
+    {
+      "date": "2024-06-01",
+      "description": "Opening Balance - June",
+      "transactionType": "Opening",
+      "gstPayable": 0,
+      "itcAvailable": 0,
+      "netLiability": 0,
+      "balance": 21680
+    }
+  ]
+}

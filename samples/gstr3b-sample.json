@@ -1,0 +1,24 @@
+{
+  "gstin": "29ABCDE1234F1Z5",
+  "filingPeriod": "April 2024",
+  "summary": {
+    "outwardTaxableSupplies": 695000,
+    "outwardExemptedSupplies": 0,
+    "outwardNilRatedSupplies": 0,
+    "outputTax": {
+      "igst": 0,
+      "cgst": 62550,
+      "sgst": 62550,
+      "total": 125100
+    },
+    "itcAvailable": {
+      "igst": 0,
+      "cgst": 45000,
+      "sgst": 45000,
+      "total": 90000
+    },
+    "netTaxPayable": 35100,
+    "paymentStatus": "Pending",
+    "filedDate": null
+  }
+}

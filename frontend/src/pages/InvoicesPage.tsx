@@ -72,7 +72,6 @@ export default function InvoicesPage() {
       </div>
 
       <div className="flex gap-3 text-xs text-muted">
-        <span className="px-2 py-1 bg-slate-100 rounded font-medium">Excel/CSV Import Ready</span>
         <span className="px-2 py-1 bg-slate-100 rounded">PDF download — coming soon</span>
         <span className="px-2 py-1 bg-slate-100 rounded">Email / WhatsApp — coming soon</span>
       </div>

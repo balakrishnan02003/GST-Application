@@ -1,4 +1,4 @@
-import { useState, useRef, useEffect } from 'react';
+import { useState, useRef } from 'react';
 import { useQuery, useMutation } from '@tanstack/react-query';
 import * as XLSX from 'xlsx';
 import { useBusiness } from '../context/BusinessContext';
@@ -47,7 +47,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
   const [sheetData, setSheetData] = useState<any[][]>([]);
   const [mapping, setMapping] = useState<Partial<Mapping>>({});
   const [parsedRows, setParsedRows] = useState<ParsedInvoiceRow[]>([]);
-  const [showErrorsOnly, setShowErrorsOnly] = useState(false);
+  const [successMessage, setSuccessMessage] = useState('');
   const [newCustomerName, setNewCustomerName] = useState('');
   const [newCustomerGstin, setNewCustomerGstin] = useState('');
   const [showAddCustomerModal, setShowAddCustomerModal] = useState(false);
@@ -79,8 +79,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
   const importMutation = useMutation({
     mutationFn: (data: BulkImportInvoice[]) => invoiceApi.bulkImport(activeBusiness!.id, data),
     onSuccess: (res) => {
-      alert(res?.message || 'Invoices imported successfully!');
-      onImportSuccess();
+      setSuccessMessage(res?.message || 'Invoices imported successfully!');
     },
     onError: (err: unknown) => {
       const error = err as { response?: { data?: { message?: string } } };
@@ -90,133 +89,129 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
 
   // Target Invoice Schema Fields
   const schemaFields = [
-    { key: 'invoiceNo', label: 'Invoice Number *', required: true },
-    { key: 'invoiceDate', label: 'Invoice Date *', required: true },
-    { key: 'customerName', label: 'Customer Name *', required: true },
-    { key: 'customerGstin', label: 'Customer GSTIN', required: false },
-    { key: 'taxableValue', label: 'Taxable Value *', required: true },
-    { key: 'gstRate', label: 'GST Rate (%)', required: false },
-    { key: 'cgst', label: 'CGST Amount', required: false },
-    { key: 'sgst', label: 'SGST Amount', required: false },
-    { key: 'igst', label: 'IGST Amount', required: false },
-    { key: 'amount', label: 'Total Amount', required: false },
-    { key: 'description', label: 'Item Description', required: false },
+    { key: 'invoiceNo', label: 'Invoice Number *', required: true, placeholder: 'e.g. Invoice No, Bill No' },
+    { key: 'invoiceDate', label: 'Invoice Date *', required: true, placeholder: 'e.g. Date, Invoice Date' },
+    { key: 'customerName', label: 'Customer Name *', required: true, placeholder: 'e.g. Customer Name, Party Name' },
+    { key: 'customerGstin', label: 'Customer GSTIN', required: false, placeholder: 'e.g. GSTIN, Customer GST' },
+    { key: 'taxableValue', label: 'Taxable Value *', required: true, placeholder: 'e.g. Taxable Value, Subtotal' },
+    { key: 'gstRate', label: 'GST Rate (%)', required: false, placeholder: 'e.g. GST Rate, Tax %' },
+    { key: 'cgst', label: 'CGST Amount', required: false, placeholder: 'e.g. CGST' },
+    { key: 'sgst', label: 'SGST Amount', required: false, placeholder: 'e.g. SGST' },
+    { key: 'igst', label: 'IGST Amount', required: false, placeholder: 'e.g. IGST' },
+    { key: 'amount', label: 'Total Amount', required: false, placeholder: 'e.g. Total, Invoice Value' },
+    { key: 'description', label: 'Item Description', required: false, placeholder: 'e.g. Description, Item Details' },
   ];
 
-  // Run auto mapping when file headers are parsed
-  useEffect(() => {
-    if (headers.length > 0) {
-      const initialMap: Partial<Mapping> = {};
-      headers.forEach((h) => {
-        const lower = h.toString().toLowerCase().trim().replace(/[^a-z0-9]/g, '');
-        if (
-          lower.includes('inv') ||
-          lower.includes('bill') ||
-          lower.includes('doc') ||
-          lower.includes('voucher') ||
-          lower === 'no' ||
-          lower === 'number'
-        ) {
-          if (!initialMap.invoiceNo) initialMap.invoiceNo = h;
-        } else if (lower.includes('date')) {
-          if (!initialMap.invoiceDate) initialMap.invoiceDate = h;
-        } else if (lower.includes('gstin') || lower === 'gst' || lower.includes('tin')) {
-          if (!initialMap.customerGstin) initialMap.customerGstin = h;
-        } else if (
-          lower.includes('cust') ||
-          lower.includes('client') ||
-          lower.includes('party') ||
-          lower.includes('buyer') ||
-          lower.includes('name')
-        ) {
-          // Priority to customerName over invoice number/date mapping if it has customer keywords
-          if (lower.includes('cust') || lower.includes('party') || lower.includes('client')) {
-            initialMap.customerName = h;
-          } else if (!initialMap.customerName && !lower.includes('date') && !lower.includes('no')) {
-            initialMap.customerName = h;
-          }
-        } else if (
-          lower.includes('taxable') ||
-          lower.includes('subtotal') ||
-          lower.includes('net') ||
-          lower === 'value' ||
-          lower === 'assessable'
-        ) {
-          if (!initialMap.taxableValue) initialMap.taxableValue = h;
-        } else if (lower.includes('rate') || lower.includes('pct') || lower.includes('percent')) {
-          if (!initialMap.gstRate) initialMap.gstRate = h;
-        } else if (lower === 'cgst' || lower.includes('cgstamount')) {
-          if (!initialMap.cgst) initialMap.cgst = h;
-        } else if (lower === 'sgst' || lower === 'utgst' || lower.includes('sgstamount')) {
-          if (!initialMap.sgst) initialMap.sgst = h;
-        } else if (lower === 'igst' || lower.includes('igstamount')) {
-          if (!initialMap.igst) initialMap.igst = h;
-        } else if (
-          lower === 'total' ||
-          lower.includes('gross') ||
-          lower === 'amount' ||
-          lower === 'invval'
-        ) {
-          if (!initialMap.amount) initialMap.amount = h;
-        } else if (lower.includes('desc') || lower.includes('particular') || lower.includes('item')) {
-          if (!initialMap.description) initialMap.description = h;
+  // Helper to run auto mapping when file headers are parsed
+  const getAutoMapping = (fileHeaders: string[]): Partial<Mapping> => {
+    const initialMap: Partial<Mapping> = {};
+    fileHeaders.forEach((h) => {
+      const lower = h.toString().toLowerCase().trim().replace(/[^a-z0-9]/g, '');
+      if (lower.includes('date')) {
+        if (!initialMap.invoiceDate) initialMap.invoiceDate = h;
+      } else if (
+        lower.includes('inv') ||
+        lower.includes('bill') ||
+        lower.includes('doc') ||
+        lower.includes('voucher') ||
+        lower === 'no' ||
+        lower === 'number'
+      ) {
+        if (!initialMap.invoiceNo) initialMap.invoiceNo = h;
+      } else if (lower.includes('gstin') || lower === 'gst' || lower.includes('tin')) {
+        if (!initialMap.customerGstin) initialMap.customerGstin = h;
+      } else if (
+        lower.includes('cust') ||
+        lower.includes('client') ||
+        lower.includes('party') ||
+        lower.includes('buyer') ||
+        lower.includes('name')
+      ) {
+        // Priority to customerName over invoice number/date mapping if it has customer keywords
+        if (lower.includes('cust') || lower.includes('party') || lower.includes('client')) {
+          initialMap.customerName = h;
+        } else if (!initialMap.customerName && !lower.includes('date') && !lower.includes('no')) {
+          initialMap.customerName = h;
         }
-      });
-      setMapping(initialMap);
-    }
-  }, [headers]);
-
-  // Handle file selection
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const selectedFile = e.target.files?.[0];
-    if (!selectedFile) return;
-
-    const reader = new FileReader();
-    reader.onload = (evt) => {
-      try {
-        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
-        const workbook = XLSX.read(data, { type: 'array' });
-        const sheetName = workbook.SheetNames[0];
-        const worksheet = workbook.Sheets[sheetName];
-
-        // Read raw grid (arrays) to preserve header structure and indices
-        const json = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
-        if (json.length === 0) {
-          alert('Spreadsheet is empty.');
-          return;
-        }
-
-        // Find header row (usually index 0, but sometimes sheets have empty spacer rows at start)
-        let headerRowIndex = 0;
-        for (let i = 0; i < Math.min(json.length, 10); i++) {
-          if (json[i] && json[i].length > 1) {
-            headerRowIndex = i;
-            break;
-          }
-        }
-
-        const rawHeaders = json[headerRowIndex].map((h: any) => h?.toString() || '');
-        const rawData = json.slice(headerRowIndex + 1).filter((row) => row.length > 0);
-
-        setHeaders(rawHeaders);
-        setSheetData(rawData);
-        setStep(2);
-      } catch (err) {
-        console.error(err);
-        alert('Failed to parse Excel/CSV. Ensure the file format is valid.');
+      } else if (
+        lower.includes('taxable') ||
+        lower.includes('subtotal') ||
+        lower.includes('net') ||
+        lower === 'value' ||
+        lower === 'assessable'
+      ) {
+        if (!initialMap.taxableValue) initialMap.taxableValue = h;
+      } else if (lower.includes('rate') || lower.includes('pct') || lower.includes('percent')) {
+        if (!initialMap.gstRate) initialMap.gstRate = h;
+      } else if (lower === 'cgst' || lower.includes('cgstamount')) {
+        if (!initialMap.cgst) initialMap.cgst = h;
+      } else if (lower === 'sgst' || lower === 'utgst' || lower.includes('sgstamount')) {
+        if (!initialMap.sgst) initialMap.sgst = h;
+      } else if (lower === 'igst' || lower.includes('igstamount')) {
+        if (!initialMap.igst) initialMap.igst = h;
+      } else if (
+        lower === 'total' ||
+        lower.includes('gross') ||
+        lower === 'amount' ||
+        lower === 'invval'
+      ) {
+        if (!initialMap.amount) initialMap.amount = h;
+      } else if (lower.includes('desc') || lower.includes('particular') || lower.includes('item')) {
+        if (!initialMap.description) initialMap.description = h;
       }
-    };
-    reader.readAsArrayBuffer(selectedFile);
+    });
+    return initialMap;
+  };
+
+  // Perform validation on a row
+  const validateRow = (row: Omit<ParsedInvoiceRow, 'errors'> & { errors?: string[] }): ParsedInvoiceRow => {
+    const errors: string[] = [];
+
+    if (!row.invoiceNo) {
+      errors.push('Invoice number is required');
+    }
+    if (!row.invoiceDate || isNaN(new Date(row.invoiceDate).getTime())) {
+      errors.push('Valid invoice date is required (YYYY-MM-DD)');
+    }
+    if (!row.customerName) {
+      errors.push('Customer Name is required');
+    }
+    if (row.taxableValue <= 0) {
+      errors.push('Taxable value must be greater than 0');
+    }
+
+    // Verify amount sum check
+    const calculatedSum = row.taxableValue + row.cgst + row.sgst + row.igst;
+    if (Math.abs(calculatedSum - row.amount) > 2) {
+      errors.push(`Total Amount (${row.amount}) does not match Taxable Value + GST sum (${calculatedSum.toFixed(2)})`);
+    }
+
+    // Verify GSTIN formatting if provided
+    if (row.customerGstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.customerGstin)) {
+      errors.push('Invalid GSTIN format');
+    }
+
+    return { ...row, errors };
   };
 
   // Convert raw sheet data into target schema rows
-  const processMappedData = () => {
-    const rows = sheetData.map((rawRow, index) => {
+  const processMappedData = (
+    customMapping?: Partial<Mapping>,
+    customHeaders?: string[],
+    customSheetData?: any[][]
+  ) => {
+    const activeMapping = customMapping || mapping;
+    const activeHeaders = customHeaders || headers;
+    const activeSheetData = customSheetData || sheetData;
+
+    const rows = activeSheetData.map((rawRow, index) => {
       const getVal = (field: keyof Mapping): any => {
-        const mappedHeader = mapping[field];
+        const mappedHeader = activeMapping[field]?.toString().toLowerCase().trim();
         if (!mappedHeader) return undefined;
-        const hIdx = headers.indexOf(mappedHeader);
-        return rawRow[hIdx];
+        const hIdx = activeHeaders.findIndex(
+          (h) => h?.toString().toLowerCase().trim() === mappedHeader
+        );
+        return hIdx !== -1 ? rawRow[hIdx] : undefined;
       };
 
       // Extract invoice no
@@ -287,35 +282,58 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
     setStep(3);
   };
 
-  // Perform validation on a row
-  const validateRow = (row: Omit<ParsedInvoiceRow, 'errors'> & { errors?: string[] }): ParsedInvoiceRow => {
-    const errors: string[] = [];
+  // Handle file selection
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const selectedFile = e.target.files?.[0];
+    if (!selectedFile) return;
 
-    if (!row.invoiceNo) {
-      errors.push('Invoice number is required');
-    }
-    if (!row.invoiceDate || isNaN(new Date(row.invoiceDate).getTime())) {
-      errors.push('Valid invoice date is required (YYYY-MM-DD)');
-    }
-    if (!row.customerName) {
-      errors.push('Customer Name is required');
-    }
-    if (row.taxableValue <= 0) {
-      errors.push('Taxable value must be greater than 0');
-    }
+    const reader = new FileReader();
+    reader.onload = (evt) => {
+      try {
+        const data = new Uint8Array(evt.target?.result as ArrayBuffer);
+        const workbook = XLSX.read(data, { type: 'array' });
+        const sheetName = workbook.SheetNames[0];
+        const worksheet = workbook.Sheets[sheetName];
 
-    // Verify amount sum check
-    const calculatedSum = row.taxableValue + row.cgst + row.sgst + row.igst;
-    if (Math.abs(calculatedSum - row.amount) > 2) {
-      errors.push(`Total Amount (${row.amount}) does not match Taxable Value + GST sum (${calculatedSum.toFixed(2)})`);
-    }
+        // Read raw grid (arrays) to preserve header structure and indices
+        const json = XLSX.utils.sheet_to_json<any[]>(worksheet, { header: 1 });
+        if (json.length === 0) {
+          alert('Spreadsheet is empty.');
+          return;
+        }
 
-    // Verify GSTIN formatting if provided
-    if (row.customerGstin && !/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/.test(row.customerGstin)) {
-      errors.push('Invalid GSTIN format');
-    }
+        // Find header row (usually index 0, but sometimes sheets have empty spacer rows at start)
+        let headerRowIndex = 0;
+        for (let i = 0; i < Math.min(json.length, 10); i++) {
+          if (json[i] && json[i].length > 1) {
+            headerRowIndex = i;
+            break;
+          }
+        }
 
-    return { ...row, errors };
+        const rawHeaders = json[headerRowIndex].map((h: any) => h?.toString() || '');
+        const rawData = json.slice(headerRowIndex + 1).filter((row) => row.length > 0);
+
+        const initialMap = getAutoMapping(rawHeaders);
+        setHeaders(rawHeaders);
+        setSheetData(rawData);
+        setMapping(initialMap);
+
+        // Check if all required fields are mapped
+        const requiredFields = ['invoiceNo', 'invoiceDate', 'customerName', 'taxableValue'];
+        const allRequiredMapped = requiredFields.every((key) => !!initialMap[key as keyof Mapping]);
+
+        if (allRequiredMapped) {
+          processMappedData(initialMap, rawHeaders, rawData);
+        } else {
+          setStep(2);
+        }
+      } catch (err) {
+        console.error(err);
+        alert('Failed to parse Excel/CSV. Ensure the file format is valid.');
+      }
+    };
+    reader.readAsArrayBuffer(selectedFile);
   };
 
   // Handle cell edit in step 3 review grid
@@ -454,7 +472,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
     return { status: 'new', label: 'New customer (will create)' };
   };
 
-  const filteredRows = showErrorsOnly ? parsedRows.filter((r) => r.errors.length > 0) : parsedRows;
+  const filteredRows = parsedRows;
 
   return (
     <div className="bg-card border rounded-2xl p-6 shadow-sm space-y-6">
@@ -565,7 +583,8 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
                     <span>{field.label}</span>
                     {field.required && <span className="text-red-500 text-[10px] font-medium">Required</span>}
                   </label>
-                  <select
+                  <input
+                    type="text"
                     value={matchedHeader || ''}
                     onChange={(e) =>
                       setMapping((prev) => ({
@@ -573,15 +592,9 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
                         [field.key]: e.target.value || undefined,
                       }))
                     }
-                    className="w-full text-sm border rounded-lg p-2 bg-card border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500"
-                  >
-                    <option value="">-- Do Not Map --</option>
-                    {headers.map((h, i) => (
-                      <option key={i} value={h}>
-                        {h}
-                      </option>
-                    ))}
-                  </select>
+                    placeholder={field.placeholder}
+                    className="w-full text-sm border rounded-lg p-2 bg-card border-slate-200 focus:border-brand-500 focus:ring-1 focus:ring-brand-500 outline-none"
+                  />
                 </div>
               );
             })}
@@ -595,7 +608,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
               Back
             </button>
             <button
-              onClick={processMappedData}
+              onClick={() => processMappedData()}
               disabled={schemaFields.filter((f) => f.required).some((f) => !mapping[f.key as keyof Mapping])}
               className="px-5 py-2.5 bg-brand-600 hover:bg-brand-700 disabled:opacity-50 text-white rounded-lg text-sm font-semibold transition"
             >
@@ -608,41 +621,6 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
       {/* Step 3: Review and Edit Grid */}
       {step === 3 && (
         <div className="space-y-6">
-          <div className="flex justify-between items-center flex-wrap gap-4 bg-slate-50 p-4 rounded-xl border">
-            <div className="flex items-center space-x-4">
-              <label className="flex items-center space-x-2 text-xs font-medium cursor-pointer text-slate-700">
-                <input
-                  type="checkbox"
-                  checked={showErrorsOnly}
-                  onChange={(e) => setShowErrorsOnly(e.target.checked)}
-                  className="rounded text-brand-600 border-slate-300 focus:ring-brand-500"
-                />
-                <span className="text-red-600">Show only {parsedRows.filter(r => r.errors.length > 0).length} rows with errors</span>
-              </label>
-              <button
-                onClick={handleAutoCalcAll}
-                className="text-xs bg-white hover:bg-slate-100 text-brand-600 border border-brand-200 px-3 py-1.5 rounded-lg font-semibold transition"
-              >
-                Auto-Recalculate Taxes
-              </button>
-            </div>
-
-            <div className="flex items-center space-x-2">
-              <button
-                onClick={() => setShowAddCustomerModal(true)}
-                className="text-xs bg-white hover:bg-slate-100 border px-3 py-1.5 rounded-lg font-semibold transition text-slate-700"
-              >
-                + Add Customer Profile
-              </button>
-              <button
-                onClick={handleAddNewRow}
-                className="text-xs bg-brand-50 hover:bg-brand-100 text-brand-700 border border-brand-100 px-3 py-1.5 rounded-lg font-semibold transition"
-              >
-                + Add Invoice Row
-              </button>
-            </div>
-          </div>
-
           {/* Editable Grid Table */}
           <div className="overflow-x-auto border rounded-xl bg-card">
             <table className="w-full text-xs text-left min-w-1200px">
@@ -751,7 +729,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
                         <td className="px-2 py-1.5">
                           <input
                             type="number"
-                            value={row.cgst || ''}
+                            value={row.cgst}
                             onChange={(e) => handleCellEdit(row.id, 'cgst', e.target.value)}
                             className="w-full border border-slate-200 rounded p-1 text-right bg-slate-50"
                           />
@@ -760,7 +738,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
                         <td className="px-2 py-1.5">
                           <input
                             type="number"
-                            value={row.sgst || ''}
+                            value={row.sgst}
                             onChange={(e) => handleCellEdit(row.id, 'sgst', e.target.value)}
                             className="w-full border border-slate-200 rounded p-1 text-right bg-slate-50"
                           />
@@ -769,7 +747,7 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
                         <td className="px-2 py-1.5">
                           <input
                             type="number"
-                            value={row.igst || ''}
+                            value={row.igst}
                             onChange={(e) => handleCellEdit(row.id, 'igst', e.target.value)}
                             className="w-full border border-slate-200 rounded p-1 text-right bg-slate-50"
                           />
@@ -873,6 +851,29 @@ export default function InvoiceImportWizard({ onClose, onImportSuccess }: Wizard
               className="px-6 py-2.5 bg-success text-white disabled:opacity-50 rounded-lg text-sm font-bold shadow transition hover:bg-emerald-700"
             >
               {importMutation.isPending ? 'Importing Invoices...' : `Import ${parsedRows.length} Invoices`}
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Success Modal */}
+      {successMessage && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl p-8 w-full max-w-sm shadow-xl border text-center space-y-4">
+            <div className="mx-auto w-14 h-14 rounded-full bg-emerald-50 flex items-center justify-center">
+              <svg className="w-7 h-7 text-emerald-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Import Successful</h3>
+              <p className="text-sm text-muted mt-1">{successMessage}</p>
+            </div>
+            <button
+              onClick={() => { setSuccessMessage(''); onImportSuccess(); }}
+              className="w-full px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-sm font-bold transition"
+            >
+              Done
             </button>
           </div>
         </div>

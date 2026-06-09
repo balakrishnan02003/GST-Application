@@ -1,0 +1,12 @@
+date,description,transactionType,gstPayable,itcAvailable,netLiability,balance
+2024-04-01,Opening Balance,Opening,0,0,0,50000
+2024-04-05,GSTR-1 Filed - April,Filing,125100,0,125100,-75100
+2024-04-10,GSTR-2B Uploaded - April,ITC,0,90000,-90000,14900
+2024-04-15,GST Payment - April,Payment,0,0,-35100,50000
+2024-04-20,Invoice INV-2024-013,Sale,17700,0,17700,32300
+2024-04-25,Invoice INV-2024-014,Sale,10620,0,10620,21680
+2024-05-01,Opening Balance - May,Opening,0,0,0,21680
+2024-05-05,GSTR-1 Filed - May,Filing,135000,0,135000,-113320
+2024-05-10,GSTR-2B Uploaded - May,ITC,0,95000,-95000,-18320
+2024-05-15,GST Payment - May,Payment,0,0,-40000,21680
+2024-06-01,Opening Balance - June,Opening,0,0,0,21680

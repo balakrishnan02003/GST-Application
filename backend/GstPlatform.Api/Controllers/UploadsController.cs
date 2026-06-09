@@ -16,7 +16,7 @@ namespace GstPlatform.Api.Controllers;
 [ApiController]
 [Authorize]
 [Route("api/businesses/{businessId:guid}/uploads")]
-public class UploadsController(AppDbContext db, IGstParserService parser) : ControllerBase
+public class UploadsController(AppDbContext db, IGstParserService parser, IGstEngine gstEngine) : ControllerBase
 {
     [HttpPost("gstr-1")]
     public async Task<ActionResult<object>> UploadGstr1(Guid businessId, IFormFile file, CancellationToken ct)
@@ -33,7 +33,37 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
         }
         else
         {
-            result = await ParseFileAsync(file, ct);
+            var parsed = await ParseFileAsync(file, ct);
+            result = ExtractGstr1Summary(parsed) ?? (object)parsed;
+        }
+
+        // Create or update GstReturn record for current month
+        var now = DateTime.UtcNow;
+        var business = await db.Businesses.FirstOrDefaultAsync(b => b.Id == businessId, ct);
+        var gstReturn = await db.GstReturns
+            .FirstOrDefaultAsync(r => r.BusinessId == businessId && r.Year == now.Year && r.Month == now.Month, ct);
+
+        if (gstReturn == null)
+        {
+            gstReturn = new GstPlatform.Core.Entities.GstReturn
+            {
+                Id = Guid.NewGuid(),
+                BusinessId = businessId,
+                Gstin = business?.Gstin ?? "",
+                Year = now.Year,
+                Month = now.Month,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.GstReturns.Add(gstReturn);
+        }
+
+        if (result is GstSummaryDto gst1)
+        {
+            gstReturn.TaxableSales = gst1.TaxableSales;
+            gstReturn.Cgst = gst1.Cgst;
+            gstReturn.Sgst = gst1.Sgst;
+            gstReturn.Igst = gst1.Igst;
+            gstReturn.OutputTax = gst1.Cgst + gst1.Sgst + gst1.Igst;
         }
 
         db.Uploads.Add(new Upload
@@ -64,7 +94,33 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
         }
         else
         {
-            result = await ParseFileAsync(file, ct);
+            var parsed = await ParseFileAsync(file, ct);
+            result = ExtractGstr2BSummary(parsed) ?? (object)parsed;
+        }
+
+        // Update GstReturn record with ITC from GSTR-2B
+        var now = DateTime.UtcNow;
+        var business = await db.Businesses.FirstOrDefaultAsync(b => b.Id == businessId, ct);
+        var gstReturn = await db.GstReturns
+            .FirstOrDefaultAsync(r => r.BusinessId == businessId && r.Year == now.Year && r.Month == now.Month, ct);
+
+        if (gstReturn == null)
+        {
+            gstReturn = new GstPlatform.Core.Entities.GstReturn
+            {
+                Id = Guid.NewGuid(),
+                BusinessId = businessId,
+                Gstin = business?.Gstin ?? "",
+                Year = now.Year,
+                Month = now.Month,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.GstReturns.Add(gstReturn);
+        }
+
+        if (result is GstSummaryDto gst2b)
+        {
+            gstReturn.InputTax = gst2b.Itc;
         }
 
         db.Uploads.Add(new Upload
@@ -85,7 +141,45 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
     {
         if (file.Length == 0) return BadRequest(new { message = "File is empty." });
 
+        var fileExt = Path.GetExtension(file.FileName).ToLower();
         var result = await ParseFileAsync(file, ct);
+
+        // Mark GstReturn as filed when GSTR-3B is uploaded
+        var now = DateTime.UtcNow;
+        var business = await db.Businesses.FirstOrDefaultAsync(b => b.Id == businessId, ct);
+        var gstReturn = await db.GstReturns
+            .FirstOrDefaultAsync(r => r.BusinessId == businessId && r.Year == now.Year && r.Month == now.Month, ct);
+
+        if (gstReturn == null)
+        {
+            gstReturn = new GstPlatform.Core.Entities.GstReturn
+            {
+                Id = Guid.NewGuid(),
+                BusinessId = businessId,
+                Gstin = business?.Gstin ?? "",
+                Year = now.Year,
+                Month = now.Month,
+                CreatedAt = DateTime.UtcNow
+            };
+            db.GstReturns.Add(gstReturn);
+        }
+
+        gstReturn.FiledAt = DateTime.UtcNow;
+
+        // Extract meaningful summary based on file type
+        string parsedSummary;
+        if (fileExt == ".json")
+        {
+            file.OpenReadStream().Seek(0, SeekOrigin.Begin);
+            await using var stream = file.OpenReadStream();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync(ct);
+            parsedSummary = ExtractGstr3BSummaryFromJson(content) ?? GetSummary(result);
+        }
+        else
+        {
+            parsedSummary = ExtractGstr3BSummaryFromParsed(result) ?? GetSummary(result);
+        }
 
         db.Uploads.Add(new Upload
         {
@@ -93,7 +187,7 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
             BusinessId = businessId,
             FileName = file.FileName,
             FileType = "GSTR-3B",
-            ParsedSummary = GetSummary(result)
+            ParsedSummary = parsedSummary
         });
         await db.SaveChangesAsync(ct);
 
@@ -105,7 +199,23 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
     {
         if (file.Length == 0) return BadRequest(new { message = "File is empty." });
 
+        var fileExt = Path.GetExtension(file.FileName).ToLower();
         var result = await ParseFileAsync(file, ct);
+
+        // Extract meaningful summary based on file type
+        string parsedSummary;
+        if (fileExt == ".json")
+        {
+            file.OpenReadStream().Seek(0, SeekOrigin.Begin);
+            await using var stream = file.OpenReadStream();
+            using var reader = new StreamReader(stream);
+            var content = await reader.ReadToEndAsync(ct);
+            parsedSummary = ExtractLedgerSummaryFromJson(content) ?? GetSummary(result);
+        }
+        else
+        {
+            parsedSummary = ExtractLedgerSummaryFromParsed(result) ?? GetSummary(result);
+        }
 
         db.Uploads.Add(new Upload
         {
@@ -113,7 +223,7 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
             BusinessId = businessId,
             FileName = file.FileName,
             FileType = "GST Ledger",
-            ParsedSummary = GetSummary(result)
+            ParsedSummary = parsedSummary
         });
         await db.SaveChangesAsync(ct);
 
@@ -124,11 +234,125 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
     public async Task<ActionResult> GetUploads(Guid businessId, CancellationToken ct) =>
         Ok(await db.Uploads.Where(u => u.BusinessId == businessId).OrderByDescending(u => u.UploadedAt).ToListAsync(ct));
 
-    private string GetSummary(object result)
+    private GstSummaryDto? ExtractGstr1Summary(dynamic parsed)
     {
-        if (result is not System.Text.Json.Nodes.JsonNode node) return "Parsed successfully";
-        var summary = node["ShortSummary"]?.GetValue<string>();
-        return summary ?? "Parsed successfully";
+        try
+        {
+            var totals = parsed.NumericTotals as Dictionary<string, decimal>;
+            if (totals == null) return null;
+
+            var cgst = totals.GetValueOrDefault("cgst");
+            var sgst = totals.GetValueOrDefault("sgst");
+            var igst = totals.GetValueOrDefault("igst");
+            var taxableValue = totals.GetValueOrDefault("taxableValue");
+            var outputTax = cgst + sgst + igst;
+
+            if (outputTax == 0 && taxableValue == 0) return null;
+
+            return gstEngine.CalculateSummary(outputTax, 0, taxableValue, cgst, sgst, igst);
+        }
+        catch { return null; }
+    }
+
+    private GstSummaryDto? ExtractGstr2BSummary(dynamic parsed)
+    {
+        try
+        {
+            var totals = parsed.NumericTotals as Dictionary<string, decimal>;
+            if (totals == null) return null;
+
+            var itc = totals.GetValueOrDefault("totalItc");
+            if (itc == 0)
+            {
+                // fallback: sum cgst+sgst+igst if totalItc column not present
+                itc = totals.GetValueOrDefault("cgst") + totals.GetValueOrDefault("sgst") + totals.GetValueOrDefault("igst");
+            }
+
+            if (itc == 0) return null;
+
+            return gstEngine.CalculateSummary(0, itc, 0, 0, 0, 0);
+        }
+        catch { return null; }
+    }
+
+    private static string? ExtractGstr3BSummaryFromJson(string content)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            var period = root.TryGetProperty("filingPeriod", out var p) ? p.GetString() : null;
+            if (!root.TryGetProperty("summary", out var summary)) return null;
+
+            var netTax = summary.TryGetProperty("netTaxPayable", out var nt) ? nt.GetDecimal() : 0;
+            var status = summary.TryGetProperty("paymentStatus", out var st) ? st.GetString() : "Unknown";
+
+            return $"GSTR-3B for {period}, Net Tax: ₹{netTax}, Status: {status}";
+        }
+        catch { return null; }
+    }
+
+    private static string? ExtractLedgerSummaryFromJson(string content)
+    {
+        try
+        {
+            using var doc = JsonDocument.Parse(content);
+            var root = doc.RootElement;
+
+            var period = root.TryGetProperty("ledgerPeriod", out var p) ? p.GetString() : null;
+            var closingBalance = root.TryGetProperty("closingBalance", out var cb) ? cb.GetDecimal() : 0;
+            var txnCount = root.TryGetProperty("transactions", out var txns) && txns.ValueKind == JsonValueKind.Array
+                ? txns.GetArrayLength() : 0;
+
+            return $"Ledger for {period}: {txnCount} transactions, Closing Balance: ₹{closingBalance}";
+        }
+        catch { return null; }
+    }
+
+    private static string? ExtractGstr3BSummaryFromParsed(dynamic parsed)
+    {
+        try
+        {
+            var totals = parsed.NumericTotals as Dictionary<string, decimal>;
+            if (totals == null) return null;
+
+            var netTax = totals.GetValueOrDefault("netTaxPayable");
+            var rowCount = parsed.RowCount as int? ?? 0;
+
+            return $"GSTR-3B: Net Tax ₹{netTax}, {rowCount} rows";
+        }
+        catch { return null; }
+    }
+
+    private static string? ExtractLedgerSummaryFromParsed(dynamic parsed)
+    {
+        try
+        {
+            var totals = parsed.NumericTotals as Dictionary<string, decimal>;
+            if (totals == null) return null;
+
+            var closingBalance = totals.GetValueOrDefault("balance");
+            var rowCount = parsed.RowCount as int? ?? 0;
+
+            return $"Ledger: {rowCount} transactions, Closing Balance: ₹{closingBalance}";
+        }
+        catch { return null; }
+    }
+
+    private static string GetSummary(object result)
+    {
+        if (result is System.Text.Json.Nodes.JsonNode node)
+            return node["ShortSummary"]?.GetValue<string>() ?? "Parsed successfully";
+
+        // Handle anonymous/dynamic objects (CSV, Excel results)
+        try
+        {
+            dynamic d = result;
+            var summary = d.ShortSummary as string;
+            return summary ?? "Parsed successfully";
+        }
+        catch { return "Parsed successfully"; }
     }
 
     private async Task<dynamic> ParseFileAsync(IFormFile file, CancellationToken ct)
@@ -194,20 +418,36 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
 
         var headers = csv.HeaderRecord?.ToList() ?? new List<string>();
         var sampleRows = new List<Dictionary<string, object?>>();
+        var allRows = new List<Dictionary<string, object?>>();
         var rowCount = 0;
 
         while (await csv.ReadAsync())
         {
-            if (sampleRows.Count < 5)
-            {
-                var row = new Dictionary<string, object?>();
-                foreach (var header in headers)
-                {
-                    row[header] = csv.GetField(header);
-                }
-                sampleRows.Add(row);
-            }
+            var row = new Dictionary<string, object?>();
+            foreach (var header in headers)
+                row[header] = csv.GetField(header);
+
+            if (sampleRows.Count < 5) sampleRows.Add(row);
+            allRows.Add(row);
             rowCount++;
+        }
+
+        // Compute numeric totals (same as Excel parser)
+        var numericTotals = new Dictionary<string, decimal>();
+        foreach (var header in headers)
+        {
+            decimal total = 0;
+            var foundNumeric = false;
+            foreach (var row in allRows)
+            {
+                var value = row.GetValueOrDefault(header)?.ToString()?.Replace(",", string.Empty);
+                if (decimal.TryParse(value, out var number))
+                {
+                    total += number;
+                    foundNumeric = true;
+                }
+            }
+            if (foundNumeric) numericTotals[header] = total;
         }
 
         return new
@@ -216,7 +456,8 @@ public class UploadsController(AppDbContext db, IGstParserService parser) : Cont
             Format = "CSV",
             Headers = headers,
             RowCount = rowCount,
-            SampleRows = sampleRows
+            SampleRows = sampleRows,
+            NumericTotals = numericTotals
         };
     }
 

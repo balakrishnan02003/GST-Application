@@ -33,21 +33,49 @@ public class DashboardService(AppDbContext db, IGstEngine gstEngine) : IDashboar
 
         var netLiability = gstEngine.CalculateNetLiability(outputTax, inputTax);
 
-        // Get real compliance events (no dummy data generation)
-        var existingEvents = await db.ComplianceEvents
-            .Where(e => e.BusinessId == businessId)
-            .ToListAsync(ct);
+        // Calculate dynamic upcoming compliance events based on current date
+        var now = DateTime.UtcNow;
+        var upcoming = new List<ComplianceAlertDto>();
 
-        var upcoming = existingEvents
-            .Where(e => !e.IsCompleted)
-            .OrderBy(e => e.DueDate)
-            .Take(5)
-            .Select(e => new ComplianceAlertDto(
-                e.Notes ?? e.FilingType.ToString(),
-                e.FilingType.ToString(),
-                e.DueDate,
-                (int)Math.Ceiling((e.DueDate - DateTime.UtcNow).TotalDays)))
-            .ToList();
+        // 1. GSTR-1 (Due on the 11th of the succeeding month)
+        var gstr1TargetMonth = now.Day <= 11 ? now.AddMonths(-1) : now;
+        var gstr1DueDate = new DateTime(gstr1TargetMonth.Year, gstr1TargetMonth.Month, 11, 23, 59, 59, DateTimeKind.Utc).AddMonths(1);
+        var isGstr1Completed = await db.Uploads.AnyAsync(u =>
+            u.BusinessId == businessId &&
+            u.FileType == "GSTR-1" &&
+            u.UploadedAt >= new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+            ct);
+        
+        var gstr1DaysLeft = (int)Math.Ceiling((gstr1DueDate - now).TotalDays);
+        if (!isGstr1Completed)
+        {
+            upcoming.Add(new ComplianceAlertDto(
+                $"GSTR-1 for {gstr1TargetMonth:MMMM yyyy}",
+                "Gstr1",
+                gstr1DueDate,
+                gstr1DaysLeft));
+        }
+
+        // 2. GSTR-3B (Due on the 20th of the succeeding month)
+        var gstr3BTargetMonth = now.Day <= 20 ? now.AddMonths(-1) : now;
+        var gstr3BDueDate = new DateTime(gstr3BTargetMonth.Year, gstr3BTargetMonth.Month, 20, 23, 59, 59, DateTimeKind.Utc).AddMonths(1);
+        var isGstr3BCompleted = await db.Uploads.AnyAsync(u =>
+            u.BusinessId == businessId &&
+            u.FileType == "GSTR-3B" &&
+            u.UploadedAt >= new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+            ct);
+
+        var gstr3BDaysLeft = (int)Math.Ceiling((gstr3BDueDate - now).TotalDays);
+        if (!isGstr3BCompleted)
+        {
+            upcoming.Add(new ComplianceAlertDto(
+                $"GSTR-3B for {gstr3BTargetMonth:MMMM yyyy}",
+                "Gstr3B",
+                gstr3BDueDate,
+                gstr3BDaysLeft));
+        }
+
+        upcoming = upcoming.OrderBy(u => u.DueDate).ToList();
 
         var itcIssues = await db.ItcMismatches
             .Where(m => m.BusinessId == businessId)
@@ -55,9 +83,34 @@ public class DashboardService(AppDbContext db, IGstEngine gstEngine) : IDashboar
 
         var alerts = new List<AlertDto>();
         if (itcIssues > 0)
+        {
             alerts.Add(new AlertDto("ITC", $"{itcIssues} ITC mismatch(es) detected — review vendor filings", "warning"));
-        if (upcoming.Any(u => u.DaysRemaining <= 7))
-            alerts.Add(new AlertDto("Compliance", "Filing due within 7 days", "critical"));
+        }
+
+        foreach (var u in upcoming)
+        {
+            var periodName = u.Title.Contains("for ") ? u.Title.Split("for ").LastOrDefault() : "";
+            if (u.DaysRemaining <= 7 && u.DaysRemaining >= 0)
+            {
+                alerts.Add(new AlertDto("Compliance", $"{u.FilingType} for {periodName} is due in {u.DaysRemaining} days", u.DaysRemaining <= 3 ? "critical" : "warning"));
+            }
+            else if (u.DaysRemaining < 0)
+            {
+                alerts.Add(new AlertDto("Compliance", $"{u.FilingType} for {periodName} is OVERDUE by {Math.Abs(u.DaysRemaining)} days", "critical"));
+            }
+        }
+
+        // Add Data Sync Alert if GSTR-2B is not uploaded yet for the current period
+        var hasGstr2BThisMonth = await db.Uploads.AnyAsync(u =>
+            u.BusinessId == businessId &&
+            u.FileType == "GSTR-2B" &&
+            u.UploadedAt >= new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc),
+            ct);
+
+        if (!hasGstr2BThisMonth)
+        {
+            alerts.Add(new AlertDto("Data Sync", "Latest GSTR-2B not uploaded. Reconcile ITC by uploading it.", "warning"));
+        }
 
         var health = await GetHealthScoreAsync(businessId, ct);
 
@@ -74,13 +127,36 @@ public class DashboardService(AppDbContext db, IGstEngine gstEngine) : IDashboar
 
     public async Task<HealthScoreDto> GetHealthScoreAsync(Guid businessId, CancellationToken ct = default)
     {
+        var now = DateTime.UtcNow;
         var returns = await db.GstReturns.Where(r => r.BusinessId == businessId).ToListAsync(ct);
-        var compliance = await db.ComplianceEvents.Where(e => e.BusinessId == businessId).ToListAsync(ct);
         var mismatches = await db.ItcMismatches.Where(m => m.BusinessId == businessId).CountAsync(ct);
 
-        var filingScore = compliance.Count == 0 ? 20 : (int)(30 * compliance.Count(e => e.IsCompleted) / (double)compliance.Count);
+        // Check if GSTR-1 and GSTR-3B uploads exist for the current month
+        var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var hasGstr1 = await db.Uploads.AnyAsync(u => u.BusinessId == businessId && u.FileType == "GSTR-1" && u.UploadedAt >= startOfMonth, ct);
+        var hasGstr3B = await db.Uploads.AnyAsync(u => u.BusinessId == businessId && u.FileType == "GSTR-3B" && u.UploadedAt >= startOfMonth, ct);
+
+        // Filing Score (out of 30):
+        // 15 points for GSTR-1, 15 points for GSTR-3B.
+        // If not uploaded yet, but we are before the due date, we count it as "on track" (full points).
+        // If after due date and not uploaded, user gets 0 points for that filing.
+        int filingScore = 0;
+        if (now.Day <= 11 || hasGstr1) filingScore += 15;
+        if (now.Day <= 20 || hasGstr3B) filingScore += 15;
+
         var vendorScore = mismatches == 0 ? 20 : Math.Max(0, 20 - mismatches * 5);
-        var itcScore = returns.Count == 0 ? 10 : (int)(20 * (returns.Average(r => r.InputTax) / Math.Max(1, returns.Average(r => r.OutputTax))));
+        
+        var itcScore = 10;
+        if (returns.Count > 0)
+        {
+            var avgOut = returns.Average(r => r.OutputTax);
+            var avgIn = returns.Average(r => r.InputTax);
+            if (avgOut > 0)
+            {
+                itcScore = (int)(20 * (avgIn / avgOut));
+            }
+        }
+        
         var paymentScore = returns.Any() ? 25 : 15;
 
         var factors = new List<HealthFactorDto>

@@ -1,0 +1,4 @@
+gstin,period,outwardTaxableSupplies,outputIgst,outputCgst,outputSgst,totalOutputTax,itcClaimed,netTaxPayable,paymentStatus
+29ABCDE1234F1Z5,April 2024,695000,0,62550,62550,125100,90000,35100,Pending
+29ABCDE1234F1Z5,May 2024,750000,0,67500,67500,135000,95000,40000,Pending
+29ABCDE1234F1Z5,June 2024,820000,0,73800,73800,147600,100000,47600,Pending

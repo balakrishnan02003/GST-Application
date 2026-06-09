@@ -22,6 +22,7 @@ export default function Layout() {
   const queryClient = useQueryClient();
 
   const [showAddBusinessModal, setShowAddBusinessModal] = useState(false);
+  const [showSignOutModal, setShowSignOutModal] = useState(false);
   const [newBusinessName, setNewBusinessName] = useState('');
   const [newBusinessGstin, setNewBusinessGstin] = useState('');
   const [businessError, setBusinessError] = useState('');
@@ -88,10 +89,7 @@ export default function Layout() {
           <p className="text-xs text-white/50 mb-1">Signed in as</p>
           <p className="text-sm font-medium truncate">{user?.name}</p>
           <button
-            onClick={() => {
-              logout();
-              navigate('/login');
-            }}
+            onClick={() => setShowSignOutModal(true)}
             className="mt-3 text-xs text-white/60 hover:text-white"
           >
             Sign out
@@ -134,6 +132,41 @@ export default function Layout() {
           <Outlet />
         </main>
       </div>
+
+      {/* Sign Out Confirmation Modal */}
+      {showSignOutModal && (
+        <div className="fixed inset-0 bg-slate-900/50 backdrop-blur-sm flex items-center justify-center p-4 z-50">
+          <div className="bg-card rounded-2xl p-6 w-full max-w-sm shadow-xl border text-center space-y-4">
+            <div className="mx-auto w-12 h-12 rounded-full bg-slate-100 flex items-center justify-center">
+              <svg className="w-6 h-6 text-slate-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1" />
+              </svg>
+            </div>
+            <div>
+              <h3 className="text-lg font-bold text-slate-800">Sign Out</h3>
+              <p className="text-sm text-muted mt-1">Are you sure you want to sign out?</p>
+            </div>
+            <div className="flex justify-center space-x-3 pt-2">
+              <button
+                onClick={() => setShowSignOutModal(false)}
+                className="px-4 py-2 border text-sm font-semibold rounded-lg text-slate-700 hover:bg-slate-50"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={() => {
+                  setShowSignOutModal(false);
+                  logout();
+                  navigate('/login');
+                }}
+                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white text-sm font-bold rounded-lg transition"
+              >
+                Sign Out
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Add Business Modal */}
       {showAddBusinessModal && (
