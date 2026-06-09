@@ -20,6 +20,9 @@ public class InvoiceService(AppDbContext db) : IInvoiceService
                 i.InvoiceDate,
                 i.Amount,
                 i.GstAmount,
+                i.Cgst,
+                i.Sgst,
+                i.Igst,
                 i.Status,
                 i.Customer != null ? i.Customer.Name : null))
             .ToListAsync(ct);
@@ -73,7 +76,7 @@ public class InvoiceService(AppDbContext db) : IInvoiceService
         if (request.CustomerId.HasValue)
             customerName = await db.Customers.Where(c => c.Id == request.CustomerId).Select(c => c.Name).FirstOrDefaultAsync(ct);
 
-        return new InvoiceDto(invoice.Id, invoice.InvoiceNo, invoice.InvoiceDate, invoice.Amount, invoice.GstAmount, invoice.Status, customerName);
+        return new InvoiceDto(invoice.Id, invoice.InvoiceNo, invoice.InvoiceDate, invoice.Amount, invoice.GstAmount, invoice.Cgst, invoice.Sgst, invoice.Igst, invoice.Status, customerName);
     }
 
     public async Task<int> BulkImportInvoicesAsync(Guid businessId, List<BulkImportInvoiceRequest> requests, CancellationToken ct = default)

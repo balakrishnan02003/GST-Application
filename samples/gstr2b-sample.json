@@ -1,5 +1,32 @@
 {
   "gstin": "29ABCDE1234F1Z5",
   "totalItc": 12000,
-  "purchases": []
+  "purchases": [
+    {
+      "vendorName": "ABC Supplies Pvt Ltd",
+      "vendorGstin": "29ABCDE1234F1Z5",
+      "invoiceNo": "INV-2026-001",
+      "invoiceDate": "2026-06-01",
+      "taxableValue": 50000,
+      "cgst": 4500,
+      "sgst": 4500,
+      "igst": 0,
+      "totalAmount": 59000,
+      "itcAmount": 9000,
+      "description": "Raw materials"
+    },
+    {
+      "vendorName": "XYZ Traders",
+      "vendorGstin": "27XYZTR5678G1Z3",
+      "invoiceNo": "INV-2026-002",
+      "invoiceDate": "2026-06-05",
+      "taxableValue": 20000,
+      "cgst": 0,
+      "sgst": 0,
+      "igst": 3600,
+      "totalAmount": 23600,
+      "itcAmount": 3600,
+      "description": "Office equipment"
+    }
+  ]
 }

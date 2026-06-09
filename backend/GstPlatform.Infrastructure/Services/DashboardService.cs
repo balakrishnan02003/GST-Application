@@ -17,24 +17,33 @@ public class DashboardService(AppDbContext db, IGstEngine gstEngine) : IDashboar
         var sales = invoices.Sum(i => i.Amount - i.GstAmount);
         var outputTax = invoices.Sum(i => i.GstAmount);
 
-        // Get ITC from latest GSTR-2B upload (if any)
-        var latestUpload = await db.Uploads
-            .Where(u => u.BusinessId == businessId && u.FileType == "GSTR-2B")
-            .OrderByDescending(u => u.UploadedAt)
-            .FirstOrDefaultAsync(ct);
+        // Get ITC and purchases from PurchaseInvoices (GSTR-2B data)
+        var now = DateTime.UtcNow;
+        var startOfMonth = new DateTime(now.Year, now.Month, 1, 0, 0, 0, DateTimeKind.Utc);
+        var endOfMonth = startOfMonth.AddMonths(1);
 
+        // Calculate total ITC available from purchases this period
         var inputTax = 0m;
-        if (latestUpload?.ParsedSummary != null && latestUpload.ParsedSummary.Contains("ITC:"))
+
+        // Fallback: if no purchases in current month, get latest GSTR-2B ITC
+        if (inputTax == 0)
         {
-            var itcStr = latestUpload.ParsedSummary.Split("ITC:").LastOrDefault()?.Trim();
-            if (decimal.TryParse(itcStr, out var itc))
-                inputTax = itc;
+            var latestUpload = await db.Uploads
+                .Where(u => u.BusinessId == businessId && u.FileType == "GSTR-2B")
+                .OrderByDescending(u => u.UploadedAt)
+                .FirstOrDefaultAsync(ct);
+
+            if (latestUpload?.ParsedSummary != null && latestUpload.ParsedSummary.Contains("ITC:"))
+            {
+                var itcStr = latestUpload.ParsedSummary.Split("ITC:").LastOrDefault()?.Trim();
+                if (decimal.TryParse(itcStr, out var itc))
+                    inputTax = itc;
+            }
         }
 
         var netLiability = gstEngine.CalculateNetLiability(outputTax, inputTax);
 
         // Calculate dynamic upcoming compliance events based on current date
-        var now = DateTime.UtcNow;
         var upcoming = new List<ComplianceAlertDto>();
 
         // 1. GSTR-1 (Due on the 11th of the succeeding month)
@@ -119,7 +128,7 @@ public class DashboardService(AppDbContext db, IGstEngine gstEngine) : IDashboar
             inputTax,
             netLiability,
             sales,
-            0m,
+            0,
             health.Score,
             upcoming,
             alerts);

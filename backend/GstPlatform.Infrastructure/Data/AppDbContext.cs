@@ -15,6 +15,7 @@ public class AppDbContext(DbContextOptions<AppDbContext> options) : DbContext(op
     public DbSet<Notice> Notices => Set<Notice>();
     public DbSet<ComplianceEvent> ComplianceEvents => Set<ComplianceEvent>();
     public DbSet<ItcMismatch> ItcMismatches => Set<ItcMismatch>();
+    public DbSet<PurchaseInvoice> PurchaseInvoices => Set<PurchaseInvoice>();
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {

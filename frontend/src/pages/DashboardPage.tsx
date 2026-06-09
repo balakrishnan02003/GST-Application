@@ -143,7 +143,6 @@ export default function DashboardPage() {
 
       {businesses.length > 0 && (
         <p className="text-xs text-muted">
-          Purchases this period: {formatCurrency(data.purchases)} ·{' '}
           <Link to="/itc" className="text-brand-600 hover:underline">
             Review ITC mismatches →
           </Link>

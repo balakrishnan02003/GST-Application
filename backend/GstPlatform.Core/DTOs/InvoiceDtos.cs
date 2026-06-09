@@ -26,6 +26,9 @@ public record InvoiceDto(
     DateTime InvoiceDate,
     decimal Amount,
     decimal GstAmount,
+    decimal Cgst,
+    decimal Sgst,
+    decimal Igst,
     string Status,
     string? CustomerName);
 

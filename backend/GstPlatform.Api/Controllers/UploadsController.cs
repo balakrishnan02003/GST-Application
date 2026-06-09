@@ -86,16 +86,43 @@ public class UploadsController(AppDbContext db, IGstParserService parser, IGstEn
 
         object result;
         var fileExt = Path.GetExtension(file.FileName).ToLower();
+        IReadOnlyList<PurchaseInvoice> parsedPurchases = new List<PurchaseInvoice>();
 
         if (fileExt == ".json")
         {
             await using var stream = file.OpenReadStream();
             result = await parser.ParseGstr2BJsonAsync(stream, ct);
+            
+            // Parse and store individual purchase invoices
+            stream.Seek(0, SeekOrigin.Begin);
+            parsedPurchases = await parser.ParseGstr2BPurchasesAsync(stream, businessId, ct);
         }
         else
         {
             var parsed = await ParseFileAsync(file, ct);
             result = ExtractGstr2BSummary(parsed) ?? (object)parsed;
+        }
+
+        // Store parsed purchases in database
+        if (parsedPurchases.Count > 0)
+        {
+            // Remove existing purchases for this business from the same period to avoid duplicates
+            var purchaseDates = parsedPurchases.Select(p => p.InvoiceDate).ToList();
+            var minDate = purchaseDates.Min();
+            var maxDate = purchaseDates.Max();
+            
+            var existingPurchases = await db.PurchaseInvoices
+                .Where(p => p.BusinessId == businessId 
+                    && p.InvoiceDate >= minDate 
+                    && p.InvoiceDate <= maxDate)
+                .ToListAsync(ct);
+            
+            if (existingPurchases.Count > 0)
+            {
+                db.PurchaseInvoices.RemoveRange(existingPurchases);
+            }
+
+            db.PurchaseInvoices.AddRange(parsedPurchases);
         }
 
         // Update GstReturn record with ITC from GSTR-2B
@@ -129,7 +156,7 @@ public class UploadsController(AppDbContext db, IGstParserService parser, IGstEn
             BusinessId = businessId,
             FileName = file.FileName,
             FileType = "GSTR-2B",
-            ParsedSummary = result is GstSummaryDto gst ? $"ITC: {gst.Itc}" : GetSummary(result)
+            ParsedSummary = result is GstSummaryDto gst ? $"ITC: {gst.Itc}, Purchases: {parsedPurchases.Count}" : GetSummary(result)
         });
         await db.SaveChangesAsync(ct);
 
